@@ -26,6 +26,8 @@ import scala.concurrent.Future
 import java.net.URI
 import java.io.IOException
 import org.jboss.netty.handler.codec.http.websocketx.CloseWebSocketFrame
+import javax.net.ssl.{SSLPeerUnverifiedException}
+import java.security.cert.Certificate
 
 private[play] class PlayDefaultUpstreamHandler(server: Server, allChannels: DefaultChannelGroup) extends SimpleChannelUpstreamHandler with WebSocketHandler with RequestBodyHandler {
 
@@ -166,6 +168,21 @@ private[play] class PlayDefaultUpstreamHandler(server: Server, allChannels: Defa
           if (!alreadyClean.getAndSet(true)) {
             play.api.Play.maybeApplication.foreach(_.global.onRequestCompletion(requestHeader))
           }
+        }
+
+        // based on 'feature-allow-to-obtain-ssl-client-certificate' branch in https://github.com/hablutzel1/play (branch currently unpublished) TODO move this netty/SSLEngine integration to reusable module
+        val sslHandler: SslHandler = ctx.getPipeline.get(classOf[SslHandler])
+        if (sslHandler != null){ // only for https requests
+          val sslSession = sslHandler.getEngine.getSession
+          // TODO get sure this only catches SSLPeerUnverifiedException
+          Exception.catching[Array[Certificate]](classOf[SSLPeerUnverifiedException]).either{
+            sslSession.getPeerCertificates
+          } .fold(x=>{
+            // to signal user not choosing any cert
+            requestHeader.sslPeerCerts = new Array[Certificate](0)
+          },v=>{
+            requestHeader.sslPeerCerts = v
+          })
         }
 
         // attach the cleanup function to the channel context for after cleaning

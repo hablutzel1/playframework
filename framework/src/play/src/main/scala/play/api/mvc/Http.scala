@@ -14,6 +14,7 @@ package play.api.mvc {
   import scala.util.Try
   import java.net.{ URLDecoder, URLEncoder }
   import scala.concurrent.duration._
+  import java.security.cert.Certificate
 
   /**
    * The HTTP request header. Note that it doesn’t contain the request body yet.
@@ -203,6 +204,11 @@ package play.api.mvc {
       method + " " + uri
     }
 
+    /**
+     * SSL client certificate (and chain?), if available
+     * TODO test under what circumstances the chain gets here too
+     */
+    var sslPeerCerts : Array[Certificate] = null
   }
 
   object RequestHeader {
@@ -274,6 +280,9 @@ package play.api.mvc {
       lazy val secure = rh.secure
       def username = None
       val body = a
+
+      // TODO check: assigning during anonymous class definition? study this syntax
+      sslPeerCerts = rh.sslPeerCerts
     }
   }
 
